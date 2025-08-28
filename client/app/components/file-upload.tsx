@@ -1,6 +1,7 @@
 'use client';
 import * as React from 'react';
 import { Upload, FileText, Check, AlertCircle, Clock, FileUp } from 'lucide-react';
+import { useUser } from '@clerk/nextjs';
 
 interface UploadedFile {
   name: string;
@@ -9,6 +10,7 @@ interface UploadedFile {
 }
 
 const FileUploadComponent: React.FC = () => {
+  const { user } = useUser();
   const [uploadStatus, setUploadStatus] = React.useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [uploadedFiles, setUploadedFiles] = React.useState<UploadedFile[]>([]);
   const [errorMessage, setErrorMessage] = React.useState<string>('');
@@ -59,12 +61,20 @@ const FileUploadComponent: React.FC = () => {
   };
 
   const handleFileUpload = async (file: File) => {
+    // Check if user is available
+    if (!user?.id) {
+      setUploadStatus('error');
+      setErrorMessage('User authentication required. Please sign in again.');
+      return;
+    }
+
     // Update upload status
     setUploadStatus('uploading');
     setErrorMessage('');
     
     const formData = new FormData();
     formData.append('pdf', file);
+    formData.append('userId', user.id); // Include user ID
 
     try {
       const response = await fetch('http://localhost:8000/upload/pdf', {
@@ -73,7 +83,8 @@ const FileUploadComponent: React.FC = () => {
       });
       
       if (!response.ok) {
-        throw new Error(`Upload failed with status: ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Upload failed with status: ${response.status}`);
       }
       
       // Add file to uploaded files list

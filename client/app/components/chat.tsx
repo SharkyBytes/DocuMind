@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import * as React from 'react';
 import { Send, FileText, Book, ThumbsUp, Star, Info, MessageSquare } from 'lucide-react';
+import { useUser } from '@clerk/nextjs';
 
 interface Doc {
   pageContent?: string;
@@ -25,6 +26,7 @@ interface IMessage {
 }
 
 const ChatComponent: React.FC = () => {
+  const { user } = useUser();
   const [message, setMessage] = React.useState<string>('');
   const [messages, setMessages] = React.useState<IMessage[]>([]);
   const [isLoading, setIsLoading] = React.useState<boolean>(false);
@@ -39,14 +41,30 @@ const ChatComponent: React.FC = () => {
   const handleSendChatMessage = async () => {
     if (!message.trim()) return;
     
+    // Check if user is available
+    if (!user?.id) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: 'User authentication required. Please sign in again.',
+        },
+      ]);
+      return;
+    }
+    
     const userMessage = message;
     setMessage('');
     setMessages((prev) => [...prev, { role: 'user', content: userMessage }]);
     
     setIsLoading(true);
     try {
-      const res = await fetch(`http://localhost:8000/chat?message=${encodeURIComponent(userMessage)}`);
+      const res = await fetch(`http://localhost:8000/chat?message=${encodeURIComponent(userMessage)}&userId=${encodeURIComponent(user.id)}`);
       const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to get response');
+      }
       
       setMessages((prev) => [
         ...prev,
@@ -62,7 +80,7 @@ const ChatComponent: React.FC = () => {
         ...prev,
         {
           role: 'assistant',
-          content: 'Sorry, I encountered an error while processing your request.',
+          content: error instanceof Error ? error.message : 'Sorry, I encountered an error while processing your request.',
         },
       ]);
     } finally {

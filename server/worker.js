@@ -174,7 +174,11 @@ const worker = new Worker(
       console.log(`Starting job processing:`, job.data);
       
       const data = JSON.parse(job.data);
-      console.log(`Processing file: ${data.filename} at path: ${data.path}`);
+      console.log(`Processing file: ${data.filename} at path: ${data.path} for user: ${data.userId}`);
+      
+      if (!data.userId) {
+        throw new Error('User ID is required for document processing');
+      }
       
       if (!fs.existsSync(data.path)) {
         throw new Error(`File does not exist at path: ${data.path}`);
@@ -225,7 +229,9 @@ const worker = new Worker(
       
       console.log(`Connecting to Qdrant vector store`);
       const vectorStoreUrl = process.env.QDRANT_URL || 'http://localhost:6333';
-      const collectionName = 'langchainjs-testing';
+      
+      // Create user-specific collection name
+      const collectionName = `user_${data.userId}_documents`;
       console.log(`Using Qdrant URL: ${vectorStoreUrl}, Collection: ${collectionName}`);
       
       let vectorStore;
@@ -237,16 +243,16 @@ const worker = new Worker(
             collectionName: collectionName,
           }
         );
-        console.log(`Connected to existing Qdrant collection successfully`);
+        console.log(`Connected to existing user-specific Qdrant collection successfully`);
       } catch (collectionError) {
         console.warn(`Could not connect to existing collection: ${collectionError.message}`);
-        console.log(`Attempting to create a new collection...`);
+        console.log(`Attempting to create a new user-specific collection...`);
         
         try {
           // Create a new collection if it doesn't exist
           vectorStore = await QdrantVectorStore.fromTexts(
             ["Initial document to create collection"],
-            { text: "This is a placeholder document" },
+            { text: "This is a placeholder document", userId: data.userId },
             embeddings,
             {
               url: vectorStoreUrl,
@@ -259,7 +265,7 @@ const worker = new Worker(
               }
             }
           );
-          console.log(`Created new Qdrant collection successfully`);
+          console.log(`Created new user-specific Qdrant collection successfully`);
         } catch (createError) {
           console.error(`Failed to create new collection: ${createError.message}`);
           throw createError;
