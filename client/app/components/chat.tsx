@@ -102,15 +102,16 @@ const ChatComponent: React.FC = () => {
             const items = paragraph.split('\n').filter(item => item.trim().startsWith('- ') || item.trim().startsWith('* '));
             return (
               <ul key={idx} className="list-disc pl-5 mb-3">
-                {items.map((item, itemIdx) => (
-                  <li key={itemIdx}>{item.replace(/^[*-]\s+/, '')}</li>
-                ))}
+                {items.map((item, itemIdx) => {
+                  // Process the list item for links
+                  const processedItem = processLinksInText(item.replace(/^[*-]\s+/, ''));
+                  return <li key={itemIdx} dangerouslySetInnerHTML={{ __html: processedItem }} />;
+                })}
               </ul>
             );
           }
-          
-          // Handle inline code, bold and italics
           let formattedText = paragraph;
+          // Handle inline code, bold and italics
           
           // Replace inline code
           formattedText = formattedText.replace(/`([^`]+)`/g, (_, code) => 
@@ -127,6 +128,9 @@ const ChatComponent: React.FC = () => {
             `<em>${text}</em>`
           );
           
+          // Process links in the text
+          formattedText = processLinksInText(formattedText);
+          
           return (
             <p 
               key={idx} 
@@ -137,6 +141,24 @@ const ChatComponent: React.FC = () => {
         })}
       </>
     );
+  };
+  
+  // Function to convert URLs in text to clickable links
+  const processLinksInText = (text: string): string => {
+    // Match URLs starting with http:// or https:// and make them clickable
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    return text.replace(urlRegex, (url) => {
+      // Ensure the URL is properly encoded
+      try {
+        // Create a URL object to validate and normalize the URL
+        new URL(url);
+        // Return an anchor tag with target="_blank" to open in a new tab
+        return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 hover:underline">${url}</a>`;
+      } catch (e) {
+        // If the URL is invalid, return it as is
+        return url;
+      }
+    });
   };
 
   // Function to calculate and display relevance stars based on score
@@ -168,12 +190,21 @@ const ChatComponent: React.FC = () => {
     if (sentences.length === 0) return null;
     
     // Take the first substantial sentence as a snippet
-    const snippet = sentences[0].trim() + (sentences[0].endsWith('.') ? '' : '...');
+    let snippet = sentences[0].trim() + (sentences[0].endsWith('.') ? '' : '...');
+    
+    // Truncate if necessary
+    if (snippet.length > 100) {
+      snippet = snippet.substring(0, 100) + '...';
+    }
+    
+    // Process any URLs in the snippet to make them clickable
+    snippet = processLinksInText(snippet);
     
     return (
-      <div className="text-xs text-gray-600 mt-1 italic">
-        "{snippet.length > 100 ? snippet.substring(0, 100) + '...' : snippet}"
-      </div>
+      <div 
+        className="text-xs text-gray-600 mt-1 italic"
+        dangerouslySetInnerHTML={{ __html: `"${snippet}"` }}
+      />
     );
   };
 
