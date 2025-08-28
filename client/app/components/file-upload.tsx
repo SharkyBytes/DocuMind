@@ -130,18 +130,14 @@ const FileUploadComponent: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full w-full p-6">
-      <h1 className="text-3xl font-bold mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400">
-        DocuMind
-      </h1>
-      
       {/* Upload card with drag and drop */}
       <div 
-        className={`bg-slate-800 text-white shadow-xl rounded-lg border-2 transition-all duration-300 overflow-hidden
+        className={`bg-white border text-slate-800 shadow-md rounded-lg transition-all duration-300 overflow-hidden
           ${dragActive ? 'border-blue-400 scale-105 shadow-blue-400/20' :
             uploadStatus === 'uploading' ? 'border-blue-400 shadow-blue-400/20' :
             uploadStatus === 'success' ? 'border-green-400 shadow-green-400/20' :
             uploadStatus === 'error' ? 'border-red-400 shadow-red-400/20' :
-            'border-slate-700 hover:border-blue-500 hover:shadow-blue-500/10'}
+            'border-slate-200 hover:border-blue-300 hover:shadow-blue-300/10'}
         `}
         onClick={uploadStatus === 'uploading' ? undefined : handleFileUploadButtonClick}
         onDragEnter={handleDrag}
@@ -155,9 +151,9 @@ const FileUploadComponent: React.FC = () => {
               <div className="w-20 h-20 mb-4 rounded-full bg-blue-500/20 flex items-center justify-center">
                 <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
               </div>
-              <h3 className="text-xl font-semibold mb-2 animate-pulse">Uploading PDF...</h3>
-              <p className="text-slate-400 text-sm">Please wait while we process your document</p>
-              <div className="w-full bg-slate-700 h-2 mt-6 rounded-full overflow-hidden">
+              <h3 className="text-xl font-semibold mb-2 animate-pulse text-slate-800">Uploading PDF...</h3>
+              <p className="text-slate-500 text-sm">Please wait while we process your document</p>
+              <div className="w-full bg-slate-200 h-2 mt-6 rounded-full overflow-hidden">
                 <div className="h-full bg-blue-500 animate-pulse-width rounded-full"></div>
               </div>
             </>
@@ -167,27 +163,27 @@ const FileUploadComponent: React.FC = () => {
                 <div className="absolute inset-0 bg-green-500/10 animate-ping"></div>
                 <Check className="w-10 h-10 text-green-500 animate-scale-in" />
               </div>
-              <h3 className="text-xl font-semibold mb-2">Upload Complete!</h3>
-              <p className="text-slate-400 text-sm">Your document has been processed</p>
+              <h3 className="text-xl font-semibold mb-2 text-slate-800">Upload Complete!</h3>
+              <p className="text-slate-500 text-sm">Your document has been processed</p>
             </>
           ) : uploadStatus === 'error' ? (
             <>
               <div className="w-20 h-20 mb-4 rounded-full bg-red-500/20 flex items-center justify-center">
                 <AlertCircle className="w-10 h-10 text-red-500 animate-shake" />
               </div>
-              <h3 className="text-xl font-semibold mb-2">Upload Failed</h3>
-              <p className="text-slate-400 text-sm">{errorMessage || 'Please try again'}</p>
+              <h3 className="text-xl font-semibold mb-2 text-slate-800">Upload Failed</h3>
+              <p className="text-slate-500 text-sm">{errorMessage || 'Please try again'}</p>
             </>
           ) : (
             <>
-              <div className="w-20 h-20 mb-4 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center relative overflow-hidden group-hover:shadow-lg transition-all duration-300">
+              <div className="w-20 h-20 mb-4 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center relative overflow-hidden group-hover:shadow-lg transition-all duration-300">
                 <div className={`absolute inset-0 ${dragActive ? 'bg-blue-500/30 animate-pulse' : 'bg-blue-500/0'}`}></div>
                 <FileUp className={`w-10 h-10 text-white transition-transform duration-300 ${dragActive ? 'scale-110' : ''}`} />
               </div>
-              <h3 className="text-xl font-semibold mb-2">Upload PDF File</h3>
-              <p className="text-slate-400 text-sm mb-2">Click to browse or drag and drop</p>
+              <h3 className="text-xl font-semibold mb-2 text-slate-800">Upload PDF File</h3>
+              <p className="text-slate-500 text-sm mb-2">Click to browse or drag and drop</p>
               <div className="flex items-center justify-center text-xs text-slate-500 mt-2">
-                <div className="flex items-center border border-slate-700 rounded-full px-3 py-1">
+                <div className="flex items-center border border-slate-200 rounded-full px-3 py-1">
                   <FileText size={12} className="mr-1" />
                   <span>PDF files only</span>
                 </div>
@@ -200,23 +196,23 @@ const FileUploadComponent: React.FC = () => {
       {/* File history with animations */}
       {uploadedFiles.length > 0 && (
         <div className="mt-8 animate-fade-in">
-          <h3 className="text-lg font-semibold mb-3 text-white flex items-center">
+          <h3 className="text-lg font-semibold mb-3 text-slate-700 flex items-center">
             <Clock className="w-4 h-4 mr-2" />
             Uploaded Documents
           </h3>
-          <div className="space-y-2 max-h-[calc(100vh-280px)] overflow-y-auto pr-2 scrollbar-thin">
+          <div className="space-y-2 max-h-[calc(100vh-380px)] overflow-y-auto pr-2 scrollbar-thin">
             {uploadedFiles.map((file, index) => (
               <div 
                 key={index} 
-                className="bg-slate-800 border border-slate-700 rounded-lg p-3 flex items-center group hover:bg-slate-750 transition-all duration-200 animate-slide-in" 
+                className="bg-white border border-slate-200 rounded-lg p-3 flex items-center group hover:bg-blue-50 transition-all duration-200 animate-slide-in" 
                 style={{ animationDelay: `${index * 100}ms` }}
               >
-                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-2 rounded-md mr-3 shadow-md group-hover:scale-110 transition-transform duration-200">
+                <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-2 rounded-md mr-3 shadow-md group-hover:scale-110 transition-transform duration-200">
                   <FileText className="w-5 h-5 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-white text-sm font-medium truncate">{file.name}</p>
-                  <div className="flex items-center text-slate-400 text-xs">
+                  <p className="text-slate-800 text-sm font-medium truncate">{file.name}</p>
+                  <div className="flex items-center text-slate-500 text-xs">
                     <span>{formatFileSize(file.size)}</span>
                     <span className="mx-1">•</span>
                     <span title={file.timestamp.toLocaleString()}>{formatTimeElapsed(file.timestamp)}</span>

@@ -1,4 +1,7 @@
 import { clerkMiddleware } from '@clerk/nextjs/server';
+import { NextRequest, NextResponse } from 'next/server';
+
+// Just use Clerk's middleware as it handles authentication and redirects
 export default clerkMiddleware();
 
 export const config = {
