@@ -6,12 +6,12 @@ import { ArrowRight, FileText } from 'lucide-react';
 export default function SignUpPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-      <div className="absolute top-6 left-6">
+      {/* <div className="absolute top-6 left-6">
         <div className="flex items-center gap-2">
           <FileText className="h-8 w-8 text-blue-600" />
           <span className="text-2xl font-bold text-blue-600">DocuMind</span>
         </div>
-      </div>
+      </div> */}
       
       <div className="w-full max-w-5xl px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row shadow-xl rounded-2xl overflow-hidden">
         {/* Left Panel - Sign Up Component */}

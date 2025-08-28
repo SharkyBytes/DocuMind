@@ -8,7 +8,15 @@ import { useRouter } from 'next/navigation';
 import { ArrowRight, FileText, MessageSquare, Upload, LogOut } from 'lucide-react';
 
 export default function Home() {
+  // Move all hooks to the top level of the component to maintain consistent hook order
   const { isSignedIn, user } = useUser();
+  const { signOut } = useClerk();
+  const router = useRouter();
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push('/');
+  };
 
   if (!isSignedIn) {
     return (
@@ -74,14 +82,6 @@ export default function Home() {
       </div>
     );
   }
-
-  const { signOut } = useClerk();
-  const router = useRouter();
-
-  const handleSignOut = async () => {
-    await signOut();
-    router.push('/');
-  };
 
   return (
     <div className="bg-gradient-to-b from-slate-50 to-white min-h-screen overflow-hidden">

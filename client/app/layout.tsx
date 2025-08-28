@@ -1,8 +1,10 @@
-import type { Metadata } from 'next';
+'use client';
+
 import { Geist, Geist_Mono } from 'next/font/google';
-import { ClerkProvider, SignedOut, SignedIn } from '@clerk/nextjs';
+import { ClerkProvider } from '@clerk/nextjs';
 import './globals.css';
 import Header from './components/header';
+import { usePathname } from 'next/navigation';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -14,33 +16,19 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
-export const metadata: Metadata = {
-  title: 'DocuMind - Intelligent Document Analysis',
-  description: 'Upload and analyze your PDFs with AI-powered insights',
-};
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+  const noHeaderPages = ['/sign-in', '/sign-up'];
+
   return (
     <ClerkProvider>
       <html lang="en">
         <body
           className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         >
-          <Header />
-          
-          <main className="min-h-[calc(100vh-60px)]">
-            <SignedOut>
-              {children}
-            </SignedOut>
-            
-            <SignedIn>
-              {children}
-            </SignedIn>
-          </main>
+          {!noHeaderPages.includes(pathname) && <Header />}
+          <main className="min-h-[calc(100vh-60px)]">{children}</main>
         </body>
       </html>
     </ClerkProvider>

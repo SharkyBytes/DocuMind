@@ -9,17 +9,11 @@ export default function SignInPage() {
   const router = useRouter();
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-      <div className="absolute top-6 left-6">
-        <div className="flex items-center gap-2">
-          <FileText className="h-8 w-8 text-blue-600" />
-          <span className="text-2xl font-bold text-blue-600">DocuMind</span>
-        </div>
-      </div>
-      
-      <div className="w-full max-w-5xl px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row shadow-xl rounded-2xl overflow-hidden">
+    <div className="h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 overflow-hidden">
+    
+      <div className="w-full max-w-5xl px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row shadow-xl rounded-2xl overflow-hidden h-full">
         {/* Left Panel - Decorative Side */}
-        <div className="hidden md:flex md:w-1/2 bg-gradient-to-br from-blue-600 to-indigo-700 p-12 flex-col justify-center relative text-white">
+        <div className="hidden md:flex md:w-1/2 bg-gradient-to-br from-blue-600 to-indigo-700 p-12 flex-col justify-center relative text-white h-full">
           <div className="absolute top-0 left-0 w-full h-full opacity-10">
             <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
               <pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse">
@@ -65,7 +59,7 @@ export default function SignInPage() {
         </div>
         
         {/* Right Panel - Sign In Component */}
-        <div className="w-full md:w-1/2 bg-white p-8 sm:p-12 flex flex-col justify-center">
+        <div className="w-full md:w-1/2 bg-white p-8 sm:p-12 flex flex-col justify-center h-full">
           <div className="mb-8 text-center md:text-left">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Sign In</h2>
             <p className="text-gray-600">
