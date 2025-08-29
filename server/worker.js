@@ -9,12 +9,71 @@ import { io as ioClient } from 'socket.io-client';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
+import https from 'https';
+import http from 'http';
+import os from 'os';
 
 // Load environment variables
 dotenv.config();
 
 // Create Socket.IO client connection to send progress updates
 const socket = ioClient('http://localhost:8000');
+
+/**
+ * Download file from URL to temporary location
+ * @param {string} url The URL to download from
+ * @param {string} filename Original filename for reference
+ * @returns {Promise<string>} Path to the downloaded temporary file
+ */
+async function downloadFileFromUrl(url, filename) {
+  return new Promise((resolve, reject) => {
+    const tempDir = os.tmpdir();
+    const tempFilePath = path.join(tempDir, `${Date.now()}_${filename}`);
+    const file = fs.createWriteStream(tempFilePath);
+    
+    const client = url.startsWith('https:') ? https : http;
+    
+    console.log(`Downloading file from URL: ${url}`);
+    console.log(`Saving to temporary path: ${tempFilePath}`);
+    
+    client.get(url, (response) => {
+      if (response.statusCode !== 200) {
+        reject(new Error(`Failed to download file: ${response.statusCode}`));
+        return;
+      }
+      
+      response.pipe(file);
+      
+      file.on('finish', () => {
+        file.close();
+        console.log(`File downloaded successfully to: ${tempFilePath}`);
+        resolve(tempFilePath);
+      });
+      
+      file.on('error', (err) => {
+        fs.unlink(tempFilePath, () => {}); // Delete the file if error
+        reject(err);
+      });
+    }).on('error', (err) => {
+      reject(err);
+    });
+  });
+}
+
+/**
+ * Clean up temporary file
+ * @param {string} filePath Path to the temporary file to delete
+ */
+function cleanupTempFile(filePath) {
+  try {
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+      console.log(`Temporary file cleaned up: ${filePath}`);
+    }
+  } catch (error) {
+    console.error(`Failed to cleanup temp file ${filePath}:`, error);
+  }
+}
 
 // Helper function to emit progress updates
 function emitProgress(userId, jobId, progress, status, message, details = null) {
@@ -192,13 +251,15 @@ async function extractPdfTextWithMetadata(filePath) {
 const worker = new Worker(
   'file-upload-queue',
   async (job) => {
+    let tempFilePath = null;
+    
     try {
       console.log(`Starting job processing:`, job.data);
       
       const data = JSON.parse(job.data);
-      const { userId, jobId, filename } = data;
+      const { userId, jobId, filename, cloudinaryUrl } = data;
       
-      console.log(`Processing file: ${filename} at path: ${data.path} for user: ${userId}`);
+      console.log(`Processing file: ${filename} from Cloudinary URL: ${cloudinaryUrl} for user: ${userId}`);
       
       if (!userId) {
         throw new Error('User ID is required for document processing');
@@ -208,26 +269,30 @@ const worker = new Worker(
       emitProgress(userId, jobId, 5, 'processing', `Starting analysis of "${filename}"...`, {
         filename,
         stage: 'initialization',
-        fileSize: fs.statSync(data.path).size
+        source: 'cloudinary'
       });
       
-      if (!fs.existsSync(data.path)) {
-        throw new Error(`File does not exist at path: ${data.path}`);
-      }
-      console.log(`File exists and is accessible`);
+      // Download file from Cloudinary to temporary location
+      emitProgress(userId, jobId, 10, 'processing', 'Downloading file from cloud storage...', {
+        filename,
+        stage: 'download'
+      });
       
-      // Emit progress for file validation
-      emitProgress(userId, jobId, 10, 'processing', 'File validated, extracting text...', {
+      tempFilePath = await downloadFileFromUrl(cloudinaryUrl, filename);
+      console.log(`File downloaded to temporary location: ${tempFilePath}`);
+      
+      // Emit progress for file download completion
+      emitProgress(userId, jobId, 15, 'processing', 'File downloaded, extracting text...', {
         filename,
         stage: 'text_extraction'
       });
       
       // Load the PDF with enhanced extraction
-      console.log(`Starting enhanced PDF extraction from: ${data.path}`);
+      console.log(`Starting enhanced PDF extraction from: ${tempFilePath}`);
       
       let docs;
       try {
-        docs = await extractPdfTextWithMetadata(data.path);
+        docs = await extractPdfTextWithMetadata(tempFilePath);
         console.log(`PDF extracted successfully with enhanced method. Number of document chunks: ${docs.length}`);
         if (docs.length > 0) {
           console.log(`First chunk sample: ${docs[0]?.pageContent.substring(0, 100)}...`);
@@ -457,9 +522,19 @@ const worker = new Worker(
       // Final completion
       emitProgress(userId, jobId, 100, 'completed', 'Document processing completed! You can now start chatting.');
       
+      // Clean up temporary file
+      if (tempFilePath) {
+        cleanupTempFile(tempFilePath);
+      }
+      
     } catch (error) {
       console.error(`Job failed: ${error.message}`);
       console.error(`Error stack: ${error.stack}`);
+      
+      // Clean up temporary file on error
+      if (tempFilePath) {
+        cleanupTempFile(tempFilePath);
+      }
       
       // Emit error progress
       emitProgress(data.userId, data.jobId, 0, 'error', `Processing failed: ${error.message}`);

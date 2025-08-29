@@ -9,6 +9,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { Redis } from '@upstash/redis';
 import dotenv from 'dotenv';
+import { storage as cloudinaryStorage } from './config/cloudinary.js';
 
 // Load environment variables
 dotenv.config();
@@ -31,17 +32,21 @@ const queue = new Queue('file-upload-queue', {
   connection: redisConnection,
 });
 
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'uploads/');
+// Use Cloudinary storage instead of local storage
+const upload = multer({ 
+  storage: cloudinaryStorage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
   },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, `${uniqueSuffix}-${file.originalname}`);
-  },
+  fileFilter: (req, file, cb) => {
+    // Accept only PDF files
+    if (file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF files are allowed!'), false);
+    }
+  }
 });
-
-const upload = multer({ storage: storage });
 
 const app = express();
 const server = createServer(app);
@@ -93,7 +98,8 @@ app.post('/upload/pdf', upload.single('pdf'), async (req, res) => {
     console.log('Upload request received:', {
       userId,
       filename: req.file?.originalname,
-      size: req.file?.size
+      size: req.file?.size,
+      cloudinaryUrl: req.file?.path // Cloudinary URL
     });
     
     if (!userId) {
@@ -111,8 +117,8 @@ app.post('/upload/pdf', upload.single('pdf'), async (req, res) => {
       'file-ready',
       JSON.stringify({
         filename: req.file.originalname,
-        destination: req.file.destination,
-        path: req.file.path,
+        cloudinaryUrl: req.file.path, // Cloudinary URL instead of local path
+        cloudinaryPublicId: req.file.filename, // Cloudinary public ID for file management
         userId: userId,
         jobId: jobId, // Include job ID for tracking
       }),
@@ -125,7 +131,8 @@ app.post('/upload/pdf', upload.single('pdf'), async (req, res) => {
     return res.json({ 
       message: 'upload started', 
       userId: userId,
-      jobId: jobId // Return job ID to client for tracking
+      jobId: jobId, // Return job ID to client for tracking
+      fileUrl: req.file.path // Return Cloudinary URL
     });
   } catch (error) {
     console.error('Upload error:', error);
