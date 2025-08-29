@@ -3,7 +3,7 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import * as React from 'react';
-import { Send, FileText, Book, ThumbsUp, Star, Info, MessageSquare } from 'lucide-react';
+import { Send, FileText, Book, Star, Info, MessageSquare } from 'lucide-react';
 import { useUser } from '@clerk/nextjs';
 
 interface Doc {
@@ -172,7 +172,7 @@ const ChatComponent: React.FC = () => {
         new URL(url);
         // Return an anchor tag with target="_blank" to open in a new tab
         return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 hover:underline">${url}</a>`;
-      } catch (e) {
+      } catch {
         // If the URL is invalid, return it as is
         return url;
       }

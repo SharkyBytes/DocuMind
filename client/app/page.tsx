@@ -1,22 +1,15 @@
 'use client';
 
-import FileUploadComponent from './components/file-upload';
-import ChatComponent from './components/chat';
 import { useUser, useClerk } from '@clerk/nextjs';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, FileText, MessageSquare, Upload, LogOut } from 'lucide-react';
+import { ArrowRight, FileText, MessageSquare, Upload } from 'lucide-react';
 
 export default function Home() {
   // Move all hooks to the top level of the component to maintain consistent hook order
   const { isSignedIn, user } = useUser();
   const { signOut } = useClerk();
   const router = useRouter();
-
-  const handleSignOut = async () => {
-    await signOut();
-    router.push('/');
-  };
 
   if (!isSignedIn) {
     return (
@@ -84,11 +77,11 @@ export default function Home() {
             <FileText className="h-10 w-10 text-white" />
           </div>
           <h1 className="text-4xl md:text-5xl font-bold text-slate-900 text-center mb-4">
-            Welcome back, <span className="text-blue-600">{user?.firstName || 'User'}</span>!
+            Welcome back, <span className="text-blue-600">{user?.firstName || `User`}</span>!
           </h1>
-          <p className="text-xl text-slate-600 text-center max-w-2xl">
-            Ready to chat with your documents using AI-powered insights
-          </p>
+            <p className="text-xl text-slate-600 text-center max-w-2xl">
+              Ready to chat with your documents using AI-powered insights
+            </p>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12 max-w-5xl w-full">

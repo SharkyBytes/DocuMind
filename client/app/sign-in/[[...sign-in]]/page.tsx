@@ -1,9 +1,8 @@
 'use client';
 
 import { SignIn } from "@clerk/nextjs";
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, FileText } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 
 export default function SignInPage() {
   const router = useRouter();

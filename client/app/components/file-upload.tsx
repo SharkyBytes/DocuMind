@@ -1,6 +1,6 @@
 'use client';
 import * as React from 'react';
-import { Upload, FileText, Check, AlertCircle, Clock, FileUp, MessageSquare } from 'lucide-react';
+import { FileText, Check, AlertCircle, Clock, FileUp, MessageSquare } from 'lucide-react';
 import { useUser } from '@clerk/nextjs';
 import { io, Socket } from 'socket.io-client';
 
@@ -121,7 +121,7 @@ const FileUploadComponent: React.FC = () => {
     const el = document.createElement('input');
     el.setAttribute('type', 'file');
     el.setAttribute('accept', 'application/pdf');
-    el.addEventListener('change', async (ev) => {
+    el.addEventListener('change', async () => {
       if (el.files && el.files.length > 0) {
         const file = el.files.item(0);
         if (file) {
@@ -325,7 +325,7 @@ const FileUploadComponent: React.FC = () => {
                         )}
                       </div>
                       <div className="text-green-700 text-xs leading-relaxed">
-                        "{progressDetails.documentPreview}..."
+                        &quot;{progressDetails.documentPreview}...&quot;
                       </div>
                     </div>
                   )}
