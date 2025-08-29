@@ -68,5 +68,5 @@ const testQdrantConnection = async () => {
   }
 };
 
-// Run the test
+// Run the testsw
 testQdrantConnection();

@@ -1,8 +1,9 @@
-services:
-  valkey:
-    image: valkey/valkey
-    ports:
-      - 6379:6379
+# services:
+#   valkey:
+#     image: valkey/valkey
+#     ports:
+#       - 6379:6379
+  # Commented out because using Upstash Redis Cloud instead
 
   # qdrant:
   #   image: qdrant/qdrant

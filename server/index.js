@@ -7,17 +7,28 @@ import { QdrantVectorStore } from '@langchain/qdrant';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import { Redis } from '@upstash/redis';
 import dotenv from 'dotenv';
 
 // Load environment variables
 dotenv.config();
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const queue = new Queue('file-upload-queue', {
-  connection: {
-    host: process.env.REDIS_HOST || 'localhost',
-    port: process.env.REDIS_PORT || '6379',
+
+// Create Upstash Redis connection for BullMQ
+// Parse the Upstash Redis URL to get connection details
+const upstashUrl = new URL(process.env.UPSTASH_REDIS_REST_URL);
+const redisConnection = {
+  host: upstashUrl.hostname,
+  port: 6379, // Upstash Redis uses port 6379 for the Redis protocol
+  password: process.env.UPSTASH_REDIS_REST_TOKEN,
+  tls: {
+    rejectUnauthorized: false // For development - in production consider proper certificate handling
   },
+};
+
+const queue = new Queue('file-upload-queue', {
+  connection: redisConnection,
 });
 
 const storage = multer.diskStorage({

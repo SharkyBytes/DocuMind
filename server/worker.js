@@ -470,8 +470,12 @@ const worker = new Worker(
   {
     concurrency: 100,
     connection: {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: process.env.REDIS_PORT || '6379',
+      host: new URL(process.env.UPSTASH_REDIS_REST_URL).hostname,
+      port: 6379, // Upstash Redis uses port 6379 for the Redis protocol
+      password: process.env.UPSTASH_REDIS_REST_TOKEN,
+      tls: {
+        rejectUnauthorized: false // For development - in production consider proper certificate handling
+      },
     },
   }
 );
