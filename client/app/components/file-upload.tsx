@@ -49,7 +49,8 @@ const FileUploadComponent: React.FC = () => {
   // Initialize Socket.IO connection
   React.useEffect(() => {
     if (user?.id) {
-      socketRef.current = io('http://localhost:8000');
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      socketRef.current = io(apiUrl);
       
       // Join user-specific room for progress updates
       socketRef.current.emit('join', user.id);
@@ -150,7 +151,8 @@ const FileUploadComponent: React.FC = () => {
     formData.append('userId', user.id); // Include user ID
 
     try {
-      const response = await fetch('http://localhost:8000/upload/pdf', {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${apiUrl}/upload/pdf`, {
         method: 'POST',
         body: formData,
       });
