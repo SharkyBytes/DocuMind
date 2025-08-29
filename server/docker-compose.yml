@@ -4,8 +4,9 @@ services:
     ports:
       - 6379:6379
 
-  qdrant:
-    image: qdrant/qdrant
-    ports:
-      - 6333:6333
+  # qdrant:
+  #   image: qdrant/qdrant
+  #   ports:
+  #     - 6333:6333
+  # Commented out because using Qdrant Cloud instead
 

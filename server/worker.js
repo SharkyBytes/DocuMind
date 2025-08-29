@@ -295,6 +295,7 @@ const worker = new Worker(
           {
             url: vectorStoreUrl,
             collectionName: collectionName,
+            apiKey: process.env.QDRANT_API_KEY,
           }
         );
         console.log(`Connected to existing user-specific Qdrant collection successfully`);
@@ -313,6 +314,7 @@ const worker = new Worker(
             {
               url: vectorStoreUrl,
               collectionName: collectionName,
+              apiKey: process.env.QDRANT_API_KEY,
               collectionConfig: {
                 vectors: {
                   size: 768,  

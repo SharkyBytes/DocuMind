@@ -155,6 +155,7 @@ app.get('/chat', async (req, res) => {
         {
           url: process.env.QDRANT_URL || 'http://localhost:6333',
           collectionName: collectionName,
+          apiKey: process.env.QDRANT_API_KEY,
         }
       );
       
