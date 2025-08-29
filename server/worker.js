@@ -5,9 +5,31 @@ import { Document } from '@langchain/core/documents';
 import { PDFLoader } from '@langchain/community/document_loaders/fs/pdf';
 import { CharacterTextSplitter } from '@langchain/textsplitters';
 import { PDFExtract } from 'pdf.js-extract';
+import { io as ioClient } from 'socket.io-client';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
+
+// Load environment variables
+dotenv.config();
+
+// Create Socket.IO client connection to send progress updates
+const socket = ioClient('http://localhost:8000');
+
+// Helper function to emit progress updates
+function emitProgress(userId, jobId, progress, status, message, details = null) {
+  const progressData = {
+    userId,
+    jobId,
+    progress,
+    status,
+    message,
+    details // Additional details like current document, batch info, etc.
+  };
+  
+  socket.emit('progress', progressData);
+  console.log(`Progress for ${userId} (${jobId}): ${progress}% - ${message}`);
+}
 
 // Load environment variables
 dotenv.config();
@@ -174,16 +196,31 @@ const worker = new Worker(
       console.log(`Starting job processing:`, job.data);
       
       const data = JSON.parse(job.data);
-      console.log(`Processing file: ${data.filename} at path: ${data.path} for user: ${data.userId}`);
+      const { userId, jobId, filename } = data;
       
-      if (!data.userId) {
+      console.log(`Processing file: ${filename} at path: ${data.path} for user: ${userId}`);
+      
+      if (!userId) {
         throw new Error('User ID is required for document processing');
       }
+      
+      // Emit initial progress with file details
+      emitProgress(userId, jobId, 5, 'processing', `Starting analysis of "${filename}"...`, {
+        filename,
+        stage: 'initialization',
+        fileSize: fs.statSync(data.path).size
+      });
       
       if (!fs.existsSync(data.path)) {
         throw new Error(`File does not exist at path: ${data.path}`);
       }
       console.log(`File exists and is accessible`);
+      
+      // Emit progress for file validation
+      emitProgress(userId, jobId, 10, 'processing', 'File validated, extracting text...', {
+        filename,
+        stage: 'text_extraction'
+      });
       
       // Load the PDF with enhanced extraction
       console.log(`Starting enhanced PDF extraction from: ${data.path}`);
@@ -195,6 +232,14 @@ const worker = new Worker(
         if (docs.length > 0) {
           console.log(`First chunk sample: ${docs[0]?.pageContent.substring(0, 100)}...`);
         }
+        
+        // Emit progress for text extraction with details
+        emitProgress(userId, jobId, 25, 'processing', `Text extracted from "${filename}"`, {
+          filename,
+          stage: 'text_extracted',
+          totalChunks: docs.length,
+          totalPages: docs.length // Assuming each chunk is roughly a page
+        });
       } catch (pdfExtractError) {
         console.error(`Enhanced PDF extraction failed: ${pdfExtractError.message}`);
         console.log(`Falling back to default PDFLoader`);
@@ -203,9 +248,14 @@ const worker = new Worker(
         const loader = new PDFLoader(data.path);
         docs = await loader.load();
         console.log(`PDF loaded with default method. Number of document chunks: ${docs.length}`);
+        
+        // Emit progress for fallback extraction
+        emitProgress(userId, jobId, 25, 'processing', `Text extracted with fallback method. Found ${docs.length} document chunks.`);
       }
       
       console.log(`Initializing embeddings with Gemini API`);
+      emitProgress(userId, jobId, 30, 'processing', 'Initializing AI embeddings...');
+      
       const embeddings = new GoogleGenerativeAIEmbeddings({
         apiKey: process.env.GEMINI_API_KEY,
         modelName: "embedding-001",
@@ -219,6 +269,8 @@ const worker = new Worker(
         if (sampleEmbedding.length === 0) {
           throw new Error("Embedding API returned an empty vector");
         }
+        
+        emitProgress(userId, jobId, 35, 'processing', 'AI embeddings initialized successfully.');
       } catch (embeddingError) {
         console.error(`Embedding API test failed: ${embeddingError.message}`);
         console.error(`This indicates issues with the Gemini API key or service`);
@@ -228,6 +280,8 @@ const worker = new Worker(
       console.log(`Embeddings initialized successfully`);
       
       console.log(`Connecting to Qdrant vector store`);
+      emitProgress(userId, jobId, 40, 'processing', 'Connecting to vector database...');
+      
       const vectorStoreUrl = process.env.QDRANT_URL || 'http://localhost:6333';
       
       // Create user-specific collection name
@@ -244,9 +298,11 @@ const worker = new Worker(
           }
         );
         console.log(`Connected to existing user-specific Qdrant collection successfully`);
+        emitProgress(userId, jobId, 45, 'processing', 'Connected to your document collection.');
       } catch (collectionError) {
         console.warn(`Could not connect to existing collection: ${collectionError.message}`);
         console.log(`Attempting to create a new user-specific collection...`);
+        emitProgress(userId, jobId, 45, 'processing', 'Creating your personal document collection...');
         
         try {
           // Create a new collection if it doesn't exist
@@ -266,6 +322,7 @@ const worker = new Worker(
             }
           );
           console.log(`Created new user-specific Qdrant collection successfully`);
+          emitProgress(userId, jobId, 50, 'processing', 'Personal document collection created successfully.');
         } catch (createError) {
           console.error(`Failed to create new collection: ${createError.message}`);
           throw createError;
@@ -281,6 +338,8 @@ const worker = new Worker(
       });
       console.log(`After filtering: ${validDocs.length} valid documents from original ${docs.length}`);
       
+      emitProgress(userId, jobId, 55, 'processing', `Preparing ${validDocs.length} document chunks for processing...`);
+      
       const BATCH_SIZE = 50;
       const batches = [];
       
@@ -290,10 +349,25 @@ const worker = new Worker(
       
       console.log(`Split processing into ${batches.length} batches of max ${BATCH_SIZE} documents each`);
       
+      emitProgress(userId, jobId, 60, 'processing', `Processing ${batches.length} batches of document chunks...`);
+      
         for (let i = 0; i < batches.length; i++) {
           const batch = batches[i];
           try {
             console.log(`Processing batch ${i+1}/${batches.length} with ${batch.length} documents`);
+            
+            // Calculate progress for this batch (60-90% range)
+            const batchStartProgress = 60;
+            const batchEndProgress = 90;
+            const batchProgress = batchStartProgress + ((i / batches.length) * (batchEndProgress - batchStartProgress));
+            
+            emitProgress(userId, jobId, Math.round(batchProgress), 'processing', `Processing batch ${i+1} of ${batches.length}`, {
+              filename,
+              stage: 'embedding_generation',
+              currentBatch: i + 1,
+              totalBatches: batches.length,
+              documentsInBatch: batch.length
+            });
             
             for (let j = 0; j < batch.length; j++) {
               try {
@@ -315,6 +389,22 @@ const worker = new Worker(
                 const contentPreview = cleanedContent.substring(0, 100).replace(/\n/g, ' ');
                 console.log(`Document ${j+1} preview: "${contentPreview}..."`);
                 
+                // Calculate total documents processed so far
+                const totalProcessed = (i * BATCH_SIZE) + j + 1;
+                const docProgress = batchStartProgress + ((totalProcessed / validDocs.length) * (batchEndProgress - batchStartProgress));
+                
+                // Emit detailed progress for current document
+                emitProgress(userId, jobId, Math.round(docProgress), 'processing', `Processing chunk ${totalProcessed} of ${validDocs.length}`, {
+                  filename,
+                  stage: 'embedding_generation',
+                  currentDocument: totalProcessed,
+                  totalDocuments: validDocs.length,
+                  currentBatch: i + 1,
+                  totalBatches: batches.length,
+                  documentPreview: contentPreview,
+                  pageNumber: doc.metadata?.loc?.pageNumber || null
+                });
+                
                 try {
                   console.log(`Generating embedding for document ${j+1} in batch ${i+1}`);
                   const embedding = await embeddings.embedQuery(cleanedContent);
@@ -328,6 +418,17 @@ const worker = new Worker(
                   
                   await vectorStore.addDocuments([cleanedDoc]);
                   console.log(`Successfully added document ${j+1}/${batch.length} in batch ${i+1}`);
+                  
+                  // Emit success for this document
+                  emitProgress(userId, jobId, Math.round(docProgress), 'processing', `✓ Processed chunk ${totalProcessed}`, {
+                    filename,
+                    stage: 'embedding_complete',
+                    currentDocument: totalProcessed,
+                    totalDocuments: validDocs.length,
+                    documentPreview: contentPreview,
+                    success: true
+                  });
+                  
                 } catch (embeddingError) {
                   console.error(`Failed to generate embedding for document ${j+1} in batch ${i+1}: ${embeddingError.message}`);
                   console.error(`Problematic content: "${contentPreview}..."`);
@@ -347,9 +448,20 @@ const worker = new Worker(
         }
       
       console.log(`Finished processing all document batches`);
+      
+      // Emit completion progress
+      emitProgress(userId, jobId, 95, 'finalizing', 'Finalizing document processing...');
+      
+      // Final completion
+      emitProgress(userId, jobId, 100, 'completed', 'Document processing completed! You can now start chatting.');
+      
     } catch (error) {
       console.error(`Job failed: ${error.message}`);
       console.error(`Error stack: ${error.stack}`);
+      
+      // Emit error progress
+      emitProgress(data.userId, data.jobId, 0, 'error', `Processing failed: ${error.message}`);
+      
       throw error; // Re-throw to mark the job as failed
     }
   },

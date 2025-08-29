@@ -1,7 +1,8 @@
 'use client';
 import * as React from 'react';
-import { Upload, FileText, Check, AlertCircle, Clock, FileUp } from 'lucide-react';
+import { Upload, FileText, Check, AlertCircle, Clock, FileUp, MessageSquare } from 'lucide-react';
 import { useUser } from '@clerk/nextjs';
+import { io, Socket } from 'socket.io-client';
 
 interface UploadedFile {
   name: string;
@@ -9,12 +10,83 @@ interface UploadedFile {
   timestamp: Date;
 }
 
+interface ProgressData {
+  userId: string;
+  jobId: string;
+  progress: number;
+  status: 'processing' | 'completed' | 'error' | 'finalizing';
+  message: string;
+  details?: {
+    filename?: string;
+    stage?: string;
+    currentDocument?: number;
+    totalDocuments?: number;
+    currentBatch?: number;
+    totalBatches?: number;
+    documentPreview?: string;
+    pageNumber?: number;
+    success?: boolean;
+    fileSize?: number;
+    totalChunks?: number;
+    totalPages?: number;
+    documentsInBatch?: number;
+  };
+}
+
 const FileUploadComponent: React.FC = () => {
   const { user } = useUser();
-  const [uploadStatus, setUploadStatus] = React.useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+  const [uploadStatus, setUploadStatus] = React.useState<'idle' | 'uploading' | 'processing' | 'success' | 'error'>('idle');
   const [uploadedFiles, setUploadedFiles] = React.useState<UploadedFile[]>([]);
   const [errorMessage, setErrorMessage] = React.useState<string>('');
   const [dragActive, setDragActive] = React.useState<boolean>(false);
+  const [currentJobId, setCurrentJobId] = React.useState<string | null>(null);
+  const [processingProgress, setProcessingProgress] = React.useState<number>(0);
+  const [processingMessage, setProcessingMessage] = React.useState<string>('');
+  const [canChat, setCanChat] = React.useState<boolean>(false);
+  const [progressDetails, setProgressDetails] = React.useState<ProgressData['details'] | null>(null);
+  const socketRef = React.useRef<Socket | null>(null);
+
+  // Initialize Socket.IO connection
+  React.useEffect(() => {
+    if (user?.id) {
+      socketRef.current = io('http://localhost:8000');
+      
+      // Join user-specific room for progress updates
+      socketRef.current.emit('join', user.id);
+      
+      // Listen for upload progress
+      socketRef.current.on('uploadProgress', (data: ProgressData) => {
+        if (data.jobId === currentJobId) {
+          setProcessingProgress(data.progress);
+          setProcessingMessage(data.message);
+          setProgressDetails(data.details || null);
+          
+          if (data.status === 'completed') {
+            setUploadStatus('success');
+            setCanChat(true);
+            setTimeout(() => {
+              setUploadStatus('idle');
+              setCurrentJobId(null);
+              setProcessingProgress(0);
+              setProcessingMessage('');
+              setProgressDetails(null);
+            }, 3000);
+          } else if (data.status === 'error') {
+            setUploadStatus('error');
+            setErrorMessage(data.message);
+            setCurrentJobId(null);
+            setProcessingProgress(0);
+            setProcessingMessage('');
+            setProgressDetails(null);
+          }
+        }
+      });
+      
+      return () => {
+        socketRef.current?.disconnect();
+      };
+    }
+  }, [user?.id, currentJobId]);
 
   // Handle drag events
   const handleDrag = (e: React.DragEvent<HTMLDivElement>) => {
@@ -71,6 +143,7 @@ const FileUploadComponent: React.FC = () => {
     // Update upload status
     setUploadStatus('uploading');
     setErrorMessage('');
+    setCanChat(false);
     
     const formData = new FormData();
     formData.append('pdf', file);
@@ -87,6 +160,14 @@ const FileUploadComponent: React.FC = () => {
         throw new Error(errorData.error || `Upload failed with status: ${response.status}`);
       }
       
+      const data = await response.json();
+      
+      // Set the job ID for tracking progress
+      setCurrentJobId(data.jobId);
+      setUploadStatus('processing');
+      setProcessingProgress(0);
+      setProcessingMessage('Upload successful, processing document...');
+      
       // Add file to uploaded files list
       setUploadedFiles(prev => [
         {
@@ -97,13 +178,8 @@ const FileUploadComponent: React.FC = () => {
         ...prev
       ]);
       
-      setUploadStatus('success');
-      console.log('File uploaded successfully');
+      console.log('File upload initiated with job ID:', data.jobId);
       
-      // Reset success status after 3 seconds
-      setTimeout(() => {
-        setUploadStatus('idle');
-      }, 3000);
     } catch (error) {
       console.error('Upload error:', error);
       setUploadStatus('error');
@@ -145,12 +221,12 @@ const FileUploadComponent: React.FC = () => {
       <div 
         className={`bg-white border text-slate-800 shadow-md rounded-lg transition-all duration-300 overflow-hidden
           ${dragActive ? 'border-blue-400 scale-105 shadow-blue-400/20' :
-            uploadStatus === 'uploading' ? 'border-blue-400 shadow-blue-400/20' :
+            uploadStatus === 'uploading' || uploadStatus === 'processing' ? 'border-blue-400 shadow-blue-400/20' :
             uploadStatus === 'success' ? 'border-green-400 shadow-green-400/20' :
             uploadStatus === 'error' ? 'border-red-400 shadow-red-400/20' :
             'border-slate-200 hover:border-blue-300 hover:shadow-blue-300/10'}
         `}
-        onClick={uploadStatus === 'uploading' ? undefined : handleFileUploadButtonClick}
+        onClick={(uploadStatus === 'uploading' || uploadStatus === 'processing') ? undefined : handleFileUploadButtonClick}
         onDragEnter={handleDrag}
         onDragLeave={handleDrag}
         onDragOver={handleDrag}
@@ -163,10 +239,107 @@ const FileUploadComponent: React.FC = () => {
                 <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
               </div>
               <h3 className="text-xl font-semibold mb-2 animate-pulse text-slate-800">Uploading PDF...</h3>
-              <p className="text-slate-500 text-sm">Please wait while we process your document</p>
+              <p className="text-slate-500 text-sm">Please wait while we upload your document</p>
               <div className="w-full bg-slate-200 h-2 mt-6 rounded-full overflow-hidden">
                 <div className="h-full bg-blue-500 animate-pulse-width rounded-full"></div>
               </div>
+            </>
+          ) : uploadStatus === 'processing' ? (
+            <>
+              <div className="w-20 h-20 mb-4 rounded-full bg-blue-500/20 flex items-center justify-center">
+                <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+              </div>
+              <h3 className="text-xl font-semibold mb-2 text-slate-800">
+                {progressDetails?.stage === 'initialization' ? 'Analyzing Document...' :
+                 progressDetails?.stage === 'text_extraction' ? 'Extracting Text...' :
+                 progressDetails?.stage === 'text_extracted' ? 'Text Extraction Complete' :
+                 progressDetails?.stage === 'embedding_generation' ? 'Processing Content...' :
+                 'Processing Document...'}
+              </h3>
+              
+              <p className="text-slate-600 text-sm mb-4 font-medium">{processingMessage}</p>
+              
+              {/* Main Progress Bar */}
+              <div className="w-full bg-slate-200 h-3 rounded-full overflow-hidden mb-2">
+                <div 
+                  className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all duration-500"
+                  style={{ width: `${processingProgress}%` }}
+                ></div>
+              </div>
+              <div className="text-sm font-medium text-blue-600 mb-4">{processingProgress}%</div>
+              
+              {/* Detailed Progress Information */}
+              {progressDetails && (
+                <div className="w-full max-w-sm">
+                  {/* File Information */}
+                  {progressDetails.filename && (
+                    <div className="bg-blue-50 rounded-lg p-3 mb-3 border border-blue-100">
+                      <div className="flex items-center text-blue-800 text-sm">
+                        <FileText className="w-4 h-4 mr-2" />
+                        <span className="font-medium truncate">{progressDetails.filename}</span>
+                      </div>
+                      {progressDetails.totalChunks && (
+                        <div className="text-blue-600 text-xs mt-1">
+                          {progressDetails.totalChunks} content chunks • {progressDetails.totalPages} pages
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Processing Details */}
+                  {progressDetails.stage === 'embedding_generation' && progressDetails.currentDocument && (
+                    <div className="bg-slate-50 rounded-lg p-3 mb-3 border">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-slate-700 text-sm font-medium">Content Processing</span>
+                        <span className="text-slate-600 text-xs">
+                          {progressDetails.currentDocument}/{progressDetails.totalDocuments}
+                        </span>
+                      </div>
+                      
+                      {/* Mini progress bar for current batch */}
+                      <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden mb-2">
+                        <div 
+                          className="h-full bg-slate-400 rounded-full transition-all duration-300"
+                          style={{ 
+                            width: `${((progressDetails.currentDocument || 0) / (progressDetails.totalDocuments || 1)) * 100}%` 
+                          }}
+                        ></div>
+                      </div>
+                      
+                      {progressDetails.currentBatch && (
+                        <div className="text-slate-500 text-xs">
+                          Batch {progressDetails.currentBatch} of {progressDetails.totalBatches}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Current Content Preview */}
+                  {progressDetails.documentPreview && (
+                    <div className="bg-green-50 rounded-lg p-3 border border-green-100">
+                      <div className="flex items-center text-green-800 text-xs font-medium mb-1">
+                        <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
+                        Currently Processing
+                        {progressDetails.pageNumber && (
+                          <span className="ml-1">(Page {progressDetails.pageNumber})</span>
+                        )}
+                      </div>
+                      <div className="text-green-700 text-xs leading-relaxed">
+                        "{progressDetails.documentPreview}..."
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {canChat && (
+                <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-200">
+                  <div className="flex items-center justify-center text-green-700">
+                    <MessageSquare className="w-4 h-4 mr-2" />
+                    <span className="text-sm font-medium">Ready to chat!</span>
+                  </div>
+                </div>
+              )}
             </>
           ) : uploadStatus === 'success' ? (
             <>
@@ -174,8 +347,8 @@ const FileUploadComponent: React.FC = () => {
                 <div className="absolute inset-0 bg-green-500/10 animate-ping"></div>
                 <Check className="w-10 h-10 text-green-500 animate-scale-in" />
               </div>
-              <h3 className="text-xl font-semibold mb-2 text-slate-800">Upload Complete!</h3>
-              <p className="text-slate-500 text-sm">Your document has been processed</p>
+              <h3 className="text-xl font-semibold mb-2 text-slate-800">Processing Complete!</h3>
+              <p className="text-slate-500 text-sm">Your document is ready for chat</p>
             </>
           ) : uploadStatus === 'error' ? (
             <>

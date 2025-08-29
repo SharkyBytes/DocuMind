@@ -5,6 +5,8 @@ import { Queue } from 'bullmq';
 import { GoogleGenerativeAIEmbeddings } from '@langchain/google-genai';
 import { QdrantVectorStore } from '@langchain/qdrant';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 import dotenv from 'dotenv';
 
 // Load environment variables
@@ -31,9 +33,41 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 const app = express();
+const server = createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "http://localhost:3000",
+    methods: ["GET", "POST"]
+  }
+});
+
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Export io for use in worker
+export { io };
+
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+  console.log('Client connected:', socket.id);
+  
+  // Handle joining user-specific room for progress updates
+  socket.on('join', (userId) => {
+    socket.join(`user_${userId}`);
+    console.log(`User ${userId} joined their progress room`);
+  });
+  
+  // Handle progress updates from worker
+  socket.on('progress', (data) => {
+    // Forward progress to the specific user
+    io.to(`user_${data.userId}`).emit('uploadProgress', data);
+  });
+  
+  socket.on('disconnect', () => {
+    console.log('Client disconnected:', socket.id);
+  });
+});
 
 
 
@@ -59,18 +93,29 @@ app.post('/upload/pdf', upload.single('pdf'), async (req, res) => {
       return res.status(400).json({ error: 'No file uploaded' });
     }
     
-    await queue.add(
+    // Create a unique job ID for tracking
+    const jobId = `${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    const job = await queue.add(
       'file-ready',
       JSON.stringify({
         filename: req.file.originalname,
         destination: req.file.destination,
         path: req.file.path,
-        userId: userId, // Include userId in the job data
-      })
+        userId: userId,
+        jobId: jobId, // Include job ID for tracking
+      }),
+      {
+        jobId: jobId, // Set the job ID in BullMQ
+      }
     );
     
-    console.log(`File upload job queued for user ${userId}`);
-    return res.json({ message: 'uploaded', userId: userId });
+    console.log(`File upload job queued for user ${userId} with job ID: ${jobId}`);
+    return res.json({ 
+      message: 'upload started', 
+      userId: userId,
+      jobId: jobId // Return job ID to client for tracking
+    });
   } catch (error) {
     console.error('Upload error:', error);
     return res.status(500).json({ error: 'Upload failed', details: error.message });
@@ -165,4 +210,4 @@ app.get('/chat', async (req, res) => {
   }
 });
 
-app.listen(8000, () => console.log(`Server started on PORT:${8000}`));
+server.listen(8000, () => console.log(`Server started on PORT:${8000}`));

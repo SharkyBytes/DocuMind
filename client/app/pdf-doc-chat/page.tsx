@@ -4,6 +4,7 @@ import FileUploadComponent from '../components/file-upload';
 import ChatComponent from '../components/chat';
 import { useUser, useClerk } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import { LogOut } from 'lucide-react';
 
 export default function PdfDocChat() {
@@ -11,14 +12,32 @@ export default function PdfDocChat() {
   const { signOut } = useClerk();
   const router = useRouter();
 
+  // Handle redirect in useEffect to avoid setState during render
+  useEffect(() => {
+    if (isSignedIn === false) {
+      router.push('/');
+    }
+  }, [isSignedIn, router]);
+
   const handleSignOut = async () => {
     await signOut();
     router.push('/');
   };
 
-  // Redirect to home if not signed in
+  // Show loading while checking authentication
+  if (isSignedIn === undefined) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-slate-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render anything if not signed in (redirect will happen in useEffect)
   if (!isSignedIn) {
-    router.push('/');
     return null;
   }
 
