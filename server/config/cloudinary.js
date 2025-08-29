@@ -18,7 +18,8 @@ const storage = new CloudinaryStorage({
   params: {
     folder: (req, file) => {
       // Organize files by user ID to segregate uploads
-      const userId = req.body?.userId || 'anonymous';
+      const userId = req.body?.userId || req.query?.userId || 'anonymous';
+      console.log('Cloudinary storage - userId found:', userId);
       return `chatbot-uploads/${userId}`;
     },
     resource_type: 'raw', // For PDFs and other non-image files

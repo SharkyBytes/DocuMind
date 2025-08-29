@@ -95,6 +95,8 @@ app.post('/upload/pdf', upload.single('pdf'), async (req, res) => {
   try {
     const userId = req.body.userId; // Get userId from request body
     
+    console.log('Full request body:', req.body);
+    console.log('Multer file info:', req.file);
     console.log('Upload request received:', {
       userId,
       filename: req.file?.originalname,
@@ -103,6 +105,7 @@ app.post('/upload/pdf', upload.single('pdf'), async (req, res) => {
     });
     
     if (!userId) {
+      console.log('Error: User ID not found in request body:', req.body);
       return res.status(400).json({ error: 'User ID is required' });
     }
     
@@ -132,7 +135,9 @@ app.post('/upload/pdf', upload.single('pdf'), async (req, res) => {
       message: 'upload started', 
       userId: userId,
       jobId: jobId, // Return job ID to client for tracking
-      fileUrl: req.file.path // Return Cloudinary URL
+      fileUrl: req.file.path, // Return Cloudinary URL for direct access
+      cloudinaryUrl: req.file.path, // Explicit Cloudinary URL
+      filename: req.file.originalname
     });
   } catch (error) {
     console.error('Upload error:', error);
