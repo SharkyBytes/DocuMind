@@ -83,7 +83,7 @@ if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN
 }
 
 // Create Socket.IO client connection to send progress updates
-const socket: Socket = ioClient('http://localhost:8000');
+const socket: Socket = ioClient(process.env.RENDER_SERVICE_URL || 'http://localhost:8000');
 
 /**
  * Download file from URL to temporary location
