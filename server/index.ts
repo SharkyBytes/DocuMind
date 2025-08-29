@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response, Application } from 'express';
 import cors from 'cors';
 import multer from 'multer';
 import { Queue } from 'bullmq';
@@ -13,6 +13,30 @@ import { storage as cloudinaryStorage } from './config/cloudinary.js';
 
 // Load environment variables
 dotenv.config();
+
+// Type definitions
+interface FileUploadJob {
+  filename: string;
+  cloudinaryUrl: string;
+  cloudinaryPublicId: string;
+  userId: string;
+  jobId: string;
+}
+
+interface ProgressData {
+  userId: string;
+  progress: number;
+  message: string;
+}
+
+// Ensure required environment variables
+if (!process.env.GEMINI_API_KEY) {
+  throw new Error('GEMINI_API_KEY environment variable is required');
+}
+
+if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+  throw new Error('Upstash Redis environment variables are required');
+}
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
@@ -38,17 +62,17 @@ const upload = multer({
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB limit
   },
-  fileFilter: (req, file, cb) => {
+  fileFilter: (req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
     // Accept only PDF files
     if (file.mimetype === 'application/pdf') {
       cb(null, true);
     } else {
-      cb(new Error('Only PDF files are allowed!'), false);
+      cb(new Error('Only PDF files are allowed!'));
     }
   }
 });
 
-const app = express();
+const app: Application = express();
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
@@ -69,13 +93,13 @@ io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
   
   // Handle joining user-specific room for progress updates
-  socket.on('join', (userId) => {
+  socket.on('join', (userId: string) => {
     socket.join(`user_${userId}`);
     console.log(`User ${userId} joined their progress room`);
   });
   
   // Handle progress updates from worker
-  socket.on('progress', (data) => {
+  socket.on('progress', (data: ProgressData) => {
     // Forward progress to the specific user
     io.to(`user_${data.userId}`).emit('uploadProgress', data);
   });
@@ -85,15 +109,13 @@ io.on('connection', (socket) => {
   });
 });
 
-
-
-app.get('/', (req, res) => {
+app.get('/', (req: Request, res: Response) => {
   return res.json({ status: 'All Good!' });
 });
 
-app.post('/upload/pdf', upload.single('pdf'), async (req, res) => {
+app.post('/upload/pdf', upload.single('pdf'), async (req: Request, res: Response) => {
   try {
-    const userId = req.body.userId; // Get userId from request body
+    const userId = req.body.userId as string; // Get userId from request body
     
     console.log('Full request body:', req.body);
     console.log('Multer file info:', req.file);
@@ -116,15 +138,17 @@ app.post('/upload/pdf', upload.single('pdf'), async (req, res) => {
     // Create a unique job ID for tracking
     const jobId = `${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
+    const jobData: FileUploadJob = {
+      filename: req.file.originalname,
+      cloudinaryUrl: req.file.path, // Cloudinary URL instead of local path
+      cloudinaryPublicId: req.file.filename, // Cloudinary public ID for file management
+      userId: userId,
+      jobId: jobId, // Include job ID for tracking
+    };
+    
     const job = await queue.add(
       'file-ready',
-      JSON.stringify({
-        filename: req.file.originalname,
-        cloudinaryUrl: req.file.path, // Cloudinary URL instead of local path
-        cloudinaryPublicId: req.file.filename, // Cloudinary public ID for file management
-        userId: userId,
-        jobId: jobId, // Include job ID for tracking
-      }),
+      JSON.stringify(jobData),
       {
         jobId: jobId, // Set the job ID in BullMQ
       }
@@ -141,14 +165,15 @@ app.post('/upload/pdf', upload.single('pdf'), async (req, res) => {
     });
   } catch (error) {
     console.error('Upload error:', error);
-    return res.status(500).json({ error: 'Upload failed', details: error.message });
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: 'Upload failed', details: errorMessage });
   }
 });
 
-app.get('/chat', async (req, res) => {
+app.get('/chat', async (req: Request, res: Response) => {
   try {
-    const userQuery = req.query.message;
-    const userId = req.query.userId; // Get userId from query parameters
+    const userQuery = req.query.message as string;
+    const userId = req.query.userId as string; // Get userId from query parameters
     
     console.log('Chat request received:', {
       userId,
@@ -164,7 +189,7 @@ app.get('/chat', async (req, res) => {
     }
 
     const embeddings = new GoogleGenerativeAIEmbeddings({
-      apiKey: process.env.GEMINI_API_KEY,
+      apiKey: process.env.GEMINI_API_KEY!,
       modelName: "embedding-001",
     });
     
@@ -215,7 +240,8 @@ app.get('/chat', async (req, res) => {
       console.error('Error in chat endpoint:', error);
       
       // If collection doesn't exist (user hasn't uploaded any documents)
-      if (error.message.includes('not found') || error.message.includes('does not exist')) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      if (errorMessage.includes('not found') || errorMessage.includes('does not exist')) {
         console.log(`Collection ${collectionName} not found - user hasn't uploaded documents yet`);
         return res.json({
           message: "I don't have any documents to reference. Please upload some PDF documents first so I can help answer your questions about them.",
@@ -227,11 +253,13 @@ app.get('/chat', async (req, res) => {
     }
   } catch (error) {
     console.error('Chat endpoint error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return res.status(500).json({ 
       error: 'Failed to process your query. Please try again.',
-      details: error.message 
+      details: errorMessage 
     });
   }
 });
 
-server.listen(8000, () => console.log(`Server started on PORT:${8000}`));
+const PORT = process.env.PORT || 8000;
+server.listen(PORT, () => console.log(`Server started on PORT:${PORT}`));
